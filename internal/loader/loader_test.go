@@ -60,6 +60,18 @@ func TestLoad_MissingFile(t *testing.T) {
 	}
 }
 
+func TestLoad_EmptyFile(t *testing.T) {
+	path := writeTempEnv(t, "")
+
+	env, err := loader.Load(path, loader.Options{})
+	if err != nil {
+		t.Fatalf("unexpected error for empty file: %v", err)
+	}
+	if len(env.Vars) != 0 {
+		t.Errorf("expected no vars for empty file, got %d", len(env.Vars))
+	}
+}
+
 func TestLoadPair_BothFiles(t *testing.T) {
 	leftPath := writeTempEnv(t, "KEY=left\n")
 	rightPath := writeTempEnv(t, "KEY=right\n")
