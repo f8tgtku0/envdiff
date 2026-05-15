@@ -1,17 +1,16 @@
-// Package differ compares two env maps and reports differences.
+// Package differ compares two env maps and returns a structured result.
 package differ
 
-// Compare returns a Result describing the differences between left and right.
-// Keys present in one but not the other are flagged as missing;
-// keys present in both but with different values are flagged as mismatched.
-func Compare(left, right map[string]string) *Result {
+// Compare takes two env maps (left and right) and returns a Result describing
+// keys that are missing in either side or have mismatched values.
+func Compare(left, right map[string]string) Result {
 	r := newResult()
 
 	for k, lv := range left {
 		if rv, ok := right[k]; !ok {
 			r.MissingInRight[k] = lv
 		} else if lv != rv {
-			r.Mismatched[k] = Pair{Left: lv, Right: rv}
+			r.Mismatched[k] = [2]string{lv, rv}
 		}
 	}
 
