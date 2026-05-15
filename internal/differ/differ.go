@@ -1,55 +1,25 @@
-// Package differ compares parsed .env maps and reports differences.
+// Package differ compares two env maps and reports differences.
 package differ
 
-// Result holds the outcome of comparing two .env environments.
-type Result struct {
-	// MissingInRight contains keys present in left but absent in right.
-	MissingInRight []string
-	// MissingInLeft contains keys present in right but absent in left.
-	MissingInLeft []string
-	// Mismatched contains keys present in both environments whose values differ.
-	Mismatched []MismatchedVar
-}
+// Compare returns a Result describing the differences between left and right.
+// Keys present in one but not the other are flagged as missing;
+// keys present in both but with different values are flagged as mismatched.
+func Compare(left, right map[string]string) *Result {
+	r := newResult()
 
-// MismatchedVar describes a single variable whose value differs between environments.
-type MismatchedVar struct {
-	Key        string
-	LeftValue  string
-	RightValue string
-}
-
-// Compare takes two env maps (key -> value) and returns a Result describing
-// all missing and mismatched variables between them.
-func Compare(left, right map[string]string) Result {
-	var result Result
-
-	for key, leftVal := range left {
-		rightVal, ok := right[key]
-		if !ok {
-			result.MissingInRight = append(result.MissingInRight, key)
-			continue
-		}
-		if leftVal != rightVal {
-			result.Mismatched = append(result.Mismatched, MismatchedVar{
-				Key:        key,
-				LeftValue:  leftVal,
-				RightValue: rightVal,
-			})
+	for k, lv := range left {
+		if rv, ok := right[k]; !ok {
+			r.MissingInRight[k] = lv
+		} else if lv != rv {
+			r.Mismatched[k] = Pair{Left: lv, Right: rv}
 		}
 	}
 
-	for key := range right {
-		if _, ok := left[key]; !ok {
-			result.MissingInLeft = append(result.MissingInLeft, key)
+	for k, rv := range right {
+		if _, ok := left[k]; !ok {
+			r.MissingInLeft[k] = rv
 		}
 	}
 
-	return result
-}
-
-// HasDiff returns true when the Result contains any differences.
-func (r Result) HasDiff() bool {
-	return len(r.MissingInRight) > 0 ||
-		len(r.MissingInLeft) > 0 ||
-		len(r.Mismatched) > 0
+	return r
 }

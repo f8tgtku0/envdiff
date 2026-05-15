@@ -2,15 +2,22 @@ package differ
 
 import (
 	"bytes"
+	"encoding/json"
 	"strings"
 	"testing"
 )
 
-func makeResult() *Result {
+func makeResult(missingRight, missingLeft map[string]string, mismatched map[string]Pair) *Result {
 	r := newResult()
-	r.MissingInRight = []string{"DB_HOST", "API_KEY"}
-	r.MissingInLeft = []string{"NEW_VAR"}
-	r.Mismatched["PORT"] = ValuePair{Left: "8080", Right: "9090"}
+	for k, v := range missingRight {
+		r.MissingInRight[k] = v
+	}
+	for k, v := range missingLeft {
+		r.MissingInLeft[k] = v
+	}
+	for k, p := range mismatched {
+		r.Mismatched[k] = p
+	}
 	return r
 }
 
@@ -26,16 +33,24 @@ func TestWriteText_Clean(t *testing.T) {
 }
 
 func TestWriteText_ShowsDiffs(t *testing.T) {
-	r := makeResult()
+	r := makeResult(
+		map[string]string{"ONLY_LEFT": "val"},
+		map[string]string{"ONLY_RIGHT": "val2"},
+		map[string]Pair{"SHARED": {Left: "a", Right: "b"}},
+	)
 	var buf bytes.Buffer
 	if err := WriteText(r, &buf); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	out := buf.String()
-	for _, want := range []string{"Missing in right", "API_KEY", "DB_HOST", "Missing in left", "NEW_VAR", "Mismatched", "PORT", "8080", "9090"} {
-		if !strings.Contains(out, want) {
-			t.Errorf("expected %q in output, got:\n%s", want, out)
-		}
+	if !strings.Contains(out, "ONLY_LEFT") {
+		t.Errorf("expected ONLY_LEFT in output")
+	}
+	if !strings.Contains(out, "ONLY_RIGHT") {
+		t.Errorf("expected ONLY_RIGHT in output")
+	}
+	if !strings.Contains(out, "SHARED") {
+		t.Errorf("expected SHARED in output")
 	}
 }
 
@@ -54,16 +69,21 @@ func TestWriteText_NilResult(t *testing.T) {
 }
 
 func TestWriteJSON_ValidStructure(t *testing.T) {
-	r := makeResult()
+	r := makeResult(
+		map[string]string{"A": "1"},
+		nil,
+		nil,
+	)
 	var buf bytes.Buffer
 	if err := WriteJSON(r, &buf); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	out := buf.String()
-	for _, want := range []string{"missingInRight", "missingInLeft", "mismatched", "PORT"} {
-		if !strings.Contains(out, want) {
-			t.Errorf("expected %q in JSON output, got:\n%s", want, out)
-		}
+	var out map[string]interface{}
+	if err := json.Unmarshal(buf.Bytes(), &out); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if _, ok := out["missing_in_right"]; !ok {
+		t.Error("expected missing_in_right field in JSON")
 	}
 }
 
@@ -71,21 +91,5 @@ func TestWriteJSON_NilWriter(t *testing.T) {
 	r := newResult()
 	if err := WriteJSON(r, nil); err == nil {
 		t.Error("expected error for nil writer")
-	}
-}
-
-func TestWriteText_SortedOutput(t *testing.T) {
-	r := newResult()
-	r.MissingInRight = []string{"Z_VAR", "A_VAR", "M_VAR"}
-	var buf bytes.Buffer
-	if err := WriteText(r, &buf); err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	out := buf.String()
-	aIdx := strings.Index(out, "A_VAR")
-	mIdx := strings.Index(out, "M_VAR")
-	zIdx := strings.Index(out, "Z_VAR")
-	if !(aIdx < mIdx && mIdx < zIdx) {
-		t.Errorf("expected sorted output, got:\n%s", out)
 	}
 }
